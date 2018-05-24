@@ -13,13 +13,12 @@ import           Control.Monad.Except                      (liftIO)
 import           Data.List                                 (elemIndex)
 import           Data.String                               (fromString)
 import           System.MQ.Component.Extras.Template.Types (MQAction)
+import           System.MQ.Component.Internal.Atomic       (updateLastMsgId)
 import           System.MQ.Component.Internal.Config       (load2Channels,
                                                             load3Channels)
 import           System.MQ.Component.Internal.Env          (Env (..))
 import qualified System.MQ.Component.Internal.Env          as C2 (TwoChannels (..))
 import qualified System.MQ.Component.Internal.Env          as C3 (ThreeChannels (..))
-import           System.MQ.Component.Internal.Transport    (PushChannel, pull,
-                                                            push, sub)
 import           System.MQ.Error                           (MQError (..),
                                                             errorComponent)
 import           System.MQ.Monad                           (MQMonad,
@@ -35,6 +34,8 @@ import           System.MQ.Protocol                        (Condition (..),
                                                             messageSpec,
                                                             messageType,
                                                             notExpires)
+import           System.MQ.Transport                       (PushChannel, pull,
+                                                            push, sub)
 
 -- | Given 'WorkerAction' acts as component's communication layer that receives messages of type 'a'
 -- from scheduler, processes them using 'WorkerAction' and sends result of type 'b' back to scheduler.
@@ -58,7 +59,7 @@ data WorkerType = Scheduler | Controller deriving (Eq, Show)
 
 -- | Alias for function that given environment receives messages from queue.
 --
-type MessageReceiver = Env -> MQMonad (MessageTag, Message)
+type MessageReceiver = MQMonad (MessageTag, Message)
 
 -- | Given 'WorkerType' and 'WorkerAction' acts as component's communication layer
 -- that receives messages of type 'a' from scheduler or controller (depending on 'WorkerType'),
@@ -72,8 +73,8 @@ worker wType action env@Env{..} = do
     (msgReceiver, schedulerIn) <- msgRecieverAndSchedulerIn
 
     foreverSafe name $ do
-        (tag, Message{..}) <- msgReceiver env
-        when (checkTag tag) $ unpackM msgData >>= processTask schedulerIn msgId
+        (tag, Message{..}) <- msgReceiver
+        when (checkTag tag) $ updateLastMsgId msgId atomic >> unpackM msgData >>= processTask schedulerIn msgId
   where
     msgRecieverAndSchedulerIn :: MQMonad (MessageReceiver, PushChannel)
     msgRecieverAndSchedulerIn =
@@ -94,8 +95,8 @@ worker wType action env@Env{..} = do
         responseE <- liftIO $ handleError $ action env config
 
         case responseE of
-          Right response -> createMessage curId creator notExpires response >>= push schedulerIn env
-          Left  m        -> createMessage curId creator notExpires (MQError errorComponent m) >>= push schedulerIn env
+          Right response -> createMessage curId creator notExpires response >>= push schedulerIn
+          Left  m        -> createMessage curId creator notExpires (MQError errorComponent m) >>= push schedulerIn
 
     handleError :: MQMonad b -> IO (Either String b)
     handleError valM = (Right <$> runMQMonad valM) `catch` (return . Left . toMeaningfulError)

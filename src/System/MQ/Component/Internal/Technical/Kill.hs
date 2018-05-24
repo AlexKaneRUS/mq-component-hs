@@ -44,7 +44,7 @@ processKill Env{..} = do
          KillConfig{..} <- unpackM msgData
          -- get current task ID
          curMsgId <- tryLastMsgId atomic
-         -- ig current task ID is the same as in received message then...
+         -- if current task ID is the same as in received message then...
          when (curMsgId == Just killTaskId) $ do
              -- get atomic 'MVar'
              Atomic{..} <- liftIO $ takeMVar atomic

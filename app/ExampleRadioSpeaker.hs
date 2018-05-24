@@ -8,9 +8,10 @@ import           Control.Monad          (forever)
 import           Control.Monad.IO.Class (liftIO)
 import           ExampleRadioTypes      (RadioData (..))
 import           System.MQ.Component    (Env (..), TwoChannels (..),
-                                         load2Channels, push, runApp)
+                                         load2Channels, runApp)
 import           System.MQ.Monad        (MQMonad)
 import           System.MQ.Protocol     (createMessage, emptyHash, notExpires)
+import           System.MQ.Transport    (push)
 
 main :: IO ()
 main = runApp "example_radio-speaker-hs" radioSpeaker
@@ -19,11 +20,11 @@ main = runApp "example_radio-speaker-hs" radioSpeaker
 -- "Good morning Vietnam! ..." every second.
 --
 radioSpeaker :: Env -> MQMonad ()
-radioSpeaker env@Env{..} = do
+radioSpeaker Env{..} = do
     TwoChannels{..} <- load2Channels
     forever $ do
         msg <- createMessage emptyHash creator notExpires $ RadioData "Good morning, Vietnam! This is example_radio-speaker-hs!"
 
-        push toScheduler env msg
+        push toScheduler msg
         liftIO $ print msg
         liftIO $ threadDelay 1000000

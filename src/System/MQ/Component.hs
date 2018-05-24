@@ -4,11 +4,9 @@ module System.MQ.Component
   , module System.MQ.Component.Internal.Atomic
   , module System.MQ.Component.Internal.Config
   , module System.MQ.Component.Internal.Env
-  , module System.MQ.Component.Internal.Transport
   ) where
 
 import           System.MQ.Component.Internal.App
 import           System.MQ.Component.Internal.Atomic
 import           System.MQ.Component.Internal.Config
 import           System.MQ.Component.Internal.Env
-import           System.MQ.Component.Internal.Transport

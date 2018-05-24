@@ -27,7 +27,6 @@ library
                      , System.MQ.Component.Internal.Env
                      , System.MQ.Component.Internal.Config
                      , System.MQ.Component.Internal.App
-                     , System.MQ.Component.Internal.Transport
        
                      , System.MQ.Component.Internal.Technical.Kill
                      , System.MQ.Component.Internal.Technical.Monitoring

@@ -10,11 +10,11 @@ module System.MQ.Component.Extras.Template.Listener
 import           Control.Monad                             (when)
 import           Data.String                               (fromString)
 import           System.MQ.Component.Extras.Template.Types (MQActionVoid)
+import           System.MQ.Component.Internal.Atomic       (updateLastMsgId)
 import           System.MQ.Component.Internal.Config       (load2Channels,
                                                             loadTechChannels)
 import           System.MQ.Component.Internal.Env          (Env (..),
                                                             TwoChannels (..))
-import           System.MQ.Component.Internal.Transport    (SubChannel, sub)
 import           System.MQ.Monad                           (MQMonad,
                                                             foreverSafe)
 import           System.MQ.Protocol                        (Condition (..),
@@ -24,6 +24,7 @@ import           System.MQ.Protocol                        (Condition (..),
                                                             Props (..), matches,
                                                             messageSpec,
                                                             messageType)
+import           System.MQ.Transport                       (SubChannel, sub)
 
 
 -- | Listener of communication level's scheduler
@@ -44,10 +45,11 @@ listenerWithChannels analyser env@Env{..} TwoChannels{..} = foreverSafe name $ o
 -- | Receive from queue message with given type, spec and pId and process it using 'MQActionVoid'
 --
 obtainData :: forall a . MessageLike a => Env -> SubChannel -> MQActionVoid a -> MQMonad ()
-obtainData env subChannel analyser = do
-    (tag, Message{..}) <- sub subChannel env
+obtainData env@Env{..} subChannel analyser = do
+    (tag, Message{..}) <- sub subChannel
 
     when (filterTag tag) $ do
+      updateLastMsgId msgId atomic
       subData <- unpackM msgData
       analyser env subData
 
