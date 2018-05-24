@@ -1,4 +1,5 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module System.MQ.Component.Internal.App
   (
@@ -17,6 +18,7 @@ import           Control.Monad                                     (forever,
                                                                     when)
 import           Control.Monad.Except                              (catchError)
 import           Control.Monad.IO.Class                            (liftIO)
+import           Control.Monad.State.Strict                        (evalStateT)
 import           System.Log.Formatter                              (simpleLogFormatter)
 import           System.Log.Handler                                (setFormatter)
 import           System.Log.Handler.Simple                         (fileHandler)
@@ -32,14 +34,22 @@ import           System.MQ.Component.Internal.Env                  (Env (..),
 import           System.MQ.Component.Internal.Technical.Kill       (processKill)
 import           System.MQ.Component.Internal.Technical.Monitoring (processMonitoring)
 import           System.MQ.Monad                                   (MQMonad,
+                                                                    MQMonadS,
                                                                     errorHandler,
-                                                                    runMQMonad)
+                                                                    runMQMonad,
+                                                                    runMQMonadS)
 
 runApp :: Name -> (Env -> MQMonad ()) -> IO ()
-runApp name' runComm = runAppWithTech name' runComm runTech
+runApp name' = runAppS name' ()
+
+runAppS :: Name -> s -> (Env -> MQMonadS s ()) -> IO ()
+runAppS name' state runComm = runAppWithTechS name' state runComm runTech
 
 runAppWithTech :: Name -> (Env -> MQMonad ()) -> (Env -> MQMonad ()) -> IO ()
-runAppWithTech name' runComm runCustomTech = do
+runAppWithTech name' = runAppWithTechS name' ()
+
+runAppWithTechS :: forall s. Name -> s -> (Env -> MQMonadS s ()) -> (Env -> MQMonad ()) -> IO ()
+runAppWithTechS name' state runComm runCustomTech = do
     env@Env{..} <- loadEnv name'
 
     setupLogger env
@@ -47,14 +57,14 @@ runAppWithTech name' runComm runCustomTech = do
     infoM name "running component..."
 
     infoM name "running technical fork..."
-    _ <- forkIO $ processMQError $ runCustomTech env
+    _ <- forkIO $ processMQError () $ runCustomTech env
 
     forever $ do
         atomicIsEmpty <- isEmptyMVar atomic
 
         when atomicIsEmpty $ do
             infoM name "there is not communication thread, creating new one..."
-            commThreadId <- forkIO $ processMQError $ runComm env
+            commThreadId <- forkIO $ processMQError state $ runComm env
 
             let newAtomic = createAtomic commThreadId
             putMVar atomic newAtomic
@@ -62,8 +72,8 @@ runAppWithTech name' runComm runCustomTech = do
         threadDelay oneSecond
 
   where
-    processMQError :: MQMonad () -> IO ()
-    processMQError = runMQMonad . flip catchError (errorHandler name')
+    processMQError :: p -> MQMonadS p () -> IO ()
+    processMQError state' = fmap fst . flip runMQMonadS state' . flip catchError (errorHandler name')
 
     setupLogger :: Env -> IO ()
     setupLogger Env{..} = do
@@ -79,5 +89,3 @@ runTech :: Env -> MQMonad ()
 runTech env@Env{..} = do
     _ <- liftIO . forkIO . runMQMonad $ processKill env
     processMonitoring env
-
-

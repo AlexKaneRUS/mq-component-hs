@@ -1,3 +1,5 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module System.MQ.Component.Internal.Atomic.Functions
   (
     createAtomic
@@ -24,7 +26,7 @@ import           System.MQ.Component.Internal.Atomic.Types (Atomic (..),
                                                             lastMsgId, message)
 import           System.MQ.Error                           (MQError (..),
                                                             errorComponent)
-import           System.MQ.Monad                           (MQMonad)
+import           System.MQ.Monad                           (MQMonadS)
 import           System.MQ.Protocol                        (Hash, emptyHash)
 
 -- | Creates new 'Atomic' with information only about communication 'ThreadId'.
@@ -59,10 +61,10 @@ tryLastMsgId = (liftIO . tryReadMVar) >=> pure . fmap (view lastMsgId)
 
 -- | Returns lastMsg from 'Atomic'. Throws an error if 'Atomic' is empty.
 --
-getLastMsgId :: MVar Atomic -> MQMonad Hash
+getLastMsgId :: forall s. MVar Atomic -> MQMonadS s Hash
 getLastMsgId = fromMMQ . tryLastMsgId
   where
-    fromMMQ :: MQMonad (Maybe Hash) -> MQMonad Hash
+    fromMMQ :: MQMonadS s (Maybe Hash) -> MQMonadS s Hash
     fromMMQ = (maybe (throwError $ MQError errorComponent "can't get message id from atomic") pure =<<)
 
 -- | Returns isAlive from 'Atomic' if possible.

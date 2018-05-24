@@ -10,6 +10,7 @@ package-indices:
 
 packages:
 - '.'
+- '../mq'
 
 extra-deps:
 

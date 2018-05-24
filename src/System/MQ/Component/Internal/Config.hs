@@ -1,5 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module System.MQ.Component.Internal.Config
   (
@@ -20,7 +21,7 @@ import           System.BCD.Config                (getConfigText)
 import           System.MQ.Component.Internal.Env (Env (..), Name,
                                                    ThreeChannels (..),
                                                    TwoChannels (..))
-import           System.MQ.Monad                  (MQMonad)
+import           System.MQ.Monad                  (MQMonadS)
 import           System.MQ.Transport              (ConnectTo (..), Context,
                                                    Host, HostPort (..), Port,
                                                    contextM)
@@ -35,10 +36,10 @@ loadEnv name' = do
     Env name' creator' logfile' frequency' <$> liftIO newEmptyMVar
 
 
-load3Channels :: Name -> MQMonad ThreeChannels
+load3Channels :: forall s. Name -> MQMonadS s ThreeChannels
 load3Channels name' = contextM >>= flip load3ChannelsWithContext name'
 
-load3ChannelsWithContext :: Context -> Name -> MQMonad ThreeChannels
+load3ChannelsWithContext :: forall s. Context -> Name -> MQMonadS s ThreeChannels
 load3ChannelsWithContext context' name' = do
     sIn   <- liftIO schedulerInFromConfig
     sOut  <- liftIO schedulerOutFromConfig
@@ -49,16 +50,16 @@ load3ChannelsWithContext context' name' = do
     fromController <- connectTo contr context'
     pure ThreeChannels{..}
 
-load2Channels :: MQMonad TwoChannels
+load2Channels :: forall s. MQMonadS s TwoChannels
 load2Channels = contextM >>= load2ChannelsWithContext
 
-load2ChannelsWithContext :: Context -> MQMonad TwoChannels
+load2ChannelsWithContext :: forall s. Context -> MQMonadS s TwoChannels
 load2ChannelsWithContext = flip configHelper comHelper
 
-loadTechChannels :: MQMonad TwoChannels
+loadTechChannels :: forall s. MQMonadS s TwoChannels
 loadTechChannels = contextM >>= loadTechChannelsWithContext
 
-loadTechChannelsWithContext :: Context -> MQMonad TwoChannels
+loadTechChannelsWithContext :: forall s. Context -> MQMonadS s TwoChannels
 loadTechChannelsWithContext = flip configHelper techHelper
 
 --------------------------------------------------------------------------------
@@ -72,7 +73,7 @@ data SchedulerCfg = SchedulerCfg { host     :: Host
 
 newtype ControllerCfg = ControllerCfg HostPort
 
-configHelper :: Context -> (SchedulerCfg -> HostPort) -> MQMonad TwoChannels
+configHelper :: forall s. Context -> (SchedulerCfg -> HostPort) -> MQMonadS s TwoChannels
 configHelper context' helper = do
     sIn  <- liftIO schedulerInFromConfig
     sOut <- liftIO schedulerOutFromConfig
