@@ -31,7 +31,7 @@ import           System.MQ.Protocol                        (Condition (..),
                                                             MessageTag,
                                                             Props (..),
                                                             createMessage,
-                                                            matches,
+                                                            emptyHash, matches,
                                                             messageSpec,
                                                             messageType,
                                                             notExpires)
@@ -82,9 +82,16 @@ worker wType action env@Env{..} = do
     foreverSafe name $ do
         (tag, Message{..}) <- msgReceiver
         state <- get
-        when (checkTag tag) $ updateLastMsgId msgId atomic >>
-                              unpackM msgData >>=
-                              processTask state schedulerIn msgId
+        when (checkTag tag) $ do
+            -- Set 'lastMsgId' to id of message that worker will process
+            updateLastMsgId msgId atomic
+
+            -- Process data from message using 'action'
+            unpackM msgData >>= processTask state schedulerIn msgId
+
+            -- After message has been processed, clear 'lastMsgId'
+            updateLastMsgId emptyHash atomic
+
   where
     msgRecieverAndSchedulerIn :: MQMonadS s (MessageReceiver s, PushChannel)
     msgRecieverAndSchedulerIn =
@@ -133,6 +140,3 @@ worker wType action env@Env{..} = do
         toMeaningfulError :: Exception e => e -> String
         toMeaningfulError = meaningfulMessage . show
 -}
-
-foo :: Num i => i
-foo = undefined

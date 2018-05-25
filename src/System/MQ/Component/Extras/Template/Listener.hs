@@ -21,7 +21,8 @@ import           System.MQ.Protocol                        (Condition (..),
                                                             Message (..),
                                                             MessageLike (..),
                                                             MessageTag,
-                                                            Props (..), matches,
+                                                            Props (..),
+                                                            emptyHash, matches,
                                                             messageSpec,
                                                             messageType)
 import           System.MQ.Transport                       (SubChannel, sub)
@@ -49,9 +50,14 @@ obtainData env@Env{..} subChannel analyser = do
     (tag, Message{..}) <- sub subChannel
 
     when (filterTag tag) $ do
+      -- Set 'lastMsgId' to id of message that worker will process
       updateLastMsgId msgId atomic
-      subData <- unpackM msgData
-      analyser env subData
+
+      -- Process data from message using 'action'
+      unpackM msgData >>= analyser env
+
+      -- After message has been processed, clear 'lastMsgId'
+      updateLastMsgId emptyHash atomic
 
   where
     Props{..} = props :: Props a

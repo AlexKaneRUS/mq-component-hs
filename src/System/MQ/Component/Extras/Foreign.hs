@@ -6,7 +6,8 @@ module System.MQ.Component.Extras.Foreign
  ( callForeignComponent
  ) where
 
-import           Control.Monad.Except                (catchError, liftIO)
+import           Control.Monad.Except                (catchError, liftIO,
+                                                      throwError)
 import           Control.Monad.Fix                   (fix)
 import           Data.ByteString                     (ByteString)
 import qualified Data.ByteString                     as BS (null)
@@ -22,9 +23,9 @@ import           System.MQ.Protocol                  (Hash, Message (..),
                                                       MessageLike (..),
                                                       MessageTag, Timestamp,
                                                       createMessage, messagePid)
-import           System.MQ.Transport                 (SubChannel, closeM,
-                                                      contextM, push, sub,
-                                                      terminateM)
+import           System.MQ.Transport                 (Context, SubChannel,
+                                                      closeM, contextM, push,
+                                                      sub, terminateM)
 
 -- | Allows user to send message to queue and receive response to it.
 -- IMPORTANT: in MoniQue should exist and be running component that will
@@ -35,19 +36,18 @@ callForeignComponent :: forall a b . (MessageLike a, MessageLike b) => Env      
                                                                     -> a         -- ^ data that will be sent in message
                                                                     -> MQMonad b -- ^ result of foreign component's computation
 callForeignComponent Env{..} curId expires mdata = do
-    context' <- contextM
-    TwoChannels{..} <- load2ChannelsWithContext context'
+    context <- contextM
+    channels@TwoChannels{..} <- load2ChannelsWithContext context
 
     dataMsg@Message{..} <- createMessage curId creator expires mdata
 
     liftIO $ infoM name $ "FOREIGN CALL: Sending message with id " ++ BSC8.unpack msgId ++ " to queue"
     push toScheduler dataMsg
 
-    responseData <- receiveResponse fromScheduler msgId
-    liftIO $ infoM name $ "FOREIGN CALL: Received response for message with id " ++ BSC8.unpack msgId ++ " from queue"
+    responseData <- receiveResponse fromScheduler msgId `catchError` catchWithClose context channels
 
     -- Close sockets and context that they are opened in
-    closeM fromScheduler >> closeM toScheduler >> terminateM context'
+    closeConnection context channels
 
     return responseData
 
@@ -61,7 +61,9 @@ callForeignComponent Env{..} curId expires mdata = do
         -- we should wait for next message. Otherwise we check whether
         -- tag's pId matches given 'pId'
         if not (BS.null tag) && checkTag pId tag
-          then unpackM msgData `catchError` const (errorMsgToError msgData)
+          then do
+              liftIO $ infoM name $ "FOREIGN CALL: Received response for message with id " ++ BSC8.unpack msgPid ++ " from queue"
+              unpackM msgData `catchError` const (errorMsgToError msgData)
           else action
 
     checkTag :: Hash -> MessageTag -> Bool
@@ -74,3 +76,9 @@ callForeignComponent Env{..} curId expires mdata = do
 
     errorMsgToError :: ByteString -> MQMonad b
     errorMsgToError bs = unpackM bs >>= throwForeignError . errorMessage
+
+    closeConnection :: Context -> TwoChannels -> MQMonad ()
+    closeConnection context TwoChannels{..} = closeM fromScheduler >> closeM toScheduler >> terminateM context
+
+    catchWithClose :: Context -> TwoChannels -> MQError -> MQMonad b
+    catchWithClose context channels e = closeConnection context channels >> throwError e
