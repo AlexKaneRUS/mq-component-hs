@@ -26,6 +26,7 @@ data Atomic = Atomic { _threadId  :: ThreadId -- ^ communication layer's 'Thread
                      , _lastMsgId :: Hash     -- ^ id of last message that was received on communication level
                      }
   deriving (Show, Eq, Ord)
+
 makeLenses ''Atomic
 
 
