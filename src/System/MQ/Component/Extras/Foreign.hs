@@ -18,7 +18,7 @@ import           System.MQ.Component.Internal.Config (load2ChannelsWithContext)
 import           System.MQ.Component.Internal.Env    (Env (..),
                                                       TwoChannels (..))
 import           System.MQ.Error                     (MQError (..))
-import           System.MQ.Monad                     (MQMonad)
+import           System.MQ.Monad                     (MQMonadS)
 import           System.MQ.Protocol                  (Hash, Message (..),
                                                       MessageLike (..),
                                                       MessageTag, Timestamp,
@@ -30,11 +30,11 @@ import           System.MQ.Transport                 (Context, SubChannel,
 -- | Allows user to send message to queue and receive response to it.
 -- IMPORTANT: in MoniQue should exist and be running component that will
 -- respond to that message, otherwise call will stuck in an infinite loop.
-callForeignComponent :: forall a b . (MessageLike a, MessageLike b) => Env       -- ^ 'Env' of component
-                                                                    -> Hash      -- ^ id of message that begets message that will be send
-                                                                    -> Timestamp -- ^ expiration date of message that will be sent to foreign component
-                                                                    -> a         -- ^ data that will be sent in message
-                                                                    -> MQMonad b -- ^ result of foreign component's computation
+callForeignComponent :: forall a b s . (MessageLike a, MessageLike b) => Env       -- ^ 'Env' of component
+                                                                      -> Hash      -- ^ id of message that begets message that will be send
+                                                                      -> Timestamp -- ^ expiration date of message that will be sent to foreign component
+                                                                      -> a         -- ^ data that will be sent in message
+                                                                      -> MQMonadS s b -- ^ result of foreign component's computation
 callForeignComponent Env{..} curId expires mdata = do
     context <- contextM
     channels@TwoChannels{..} <- load2ChannelsWithContext context
@@ -53,7 +53,7 @@ callForeignComponent Env{..} curId expires mdata = do
 
   where
     -- Receives messages from queue until message with given pId is received
-    receiveResponse :: SubChannel -> Hash -> MQMonad b
+    receiveResponse :: SubChannel -> Hash -> MQMonadS s b
     receiveResponse schedulerOut pId = fix $ \action -> do
         (tag, Message{..}) <- sub schedulerOut `catchError` handleSub
 
@@ -71,14 +71,14 @@ callForeignComponent Env{..} curId expires mdata = do
 
     -- | If message received from queue can't be decoded into MoniQue message,
     -- then we set its tag to empty.
-    handleSub :: MQError -> MQMonad (MessageTag, Message)
+    handleSub :: MQError -> MQMonadS s (MessageTag, Message)
     handleSub _ = return ("", error "Received broken message.")
 
-    errorMsgToError :: ByteString -> MQMonad b
+    errorMsgToError :: ByteString -> MQMonadS s b
     errorMsgToError bs = unpackM bs >>= throwForeignError . errorMessage
 
-    closeConnection :: Context -> TwoChannels -> MQMonad ()
+    closeConnection :: Context -> TwoChannels -> MQMonadS s ()
     closeConnection context TwoChannels{..} = closeM fromScheduler >> closeM toScheduler >> terminateM context
 
-    catchWithClose :: Context -> TwoChannels -> MQError -> MQMonad b
+    catchWithClose :: Context -> TwoChannels -> MQError -> MQMonadS s b
     catchWithClose context channels e = closeConnection context channels >> throwError e

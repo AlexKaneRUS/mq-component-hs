@@ -3,6 +3,7 @@ module System.MQ.Component.Extras.Template.Types
     MQAction
   , MQActionS
   , MQActionVoid
+  , MQActionVoidS
   ) where
 
 import           System.MQ.Component.Internal.Env (Env)
@@ -22,4 +23,6 @@ type MQAction a b = MQActionS () a b
 -- Type is similar to 'MQAction' apart from the fact that this action doesn't
 -- produce any results.
 --
+type MQActionVoidS s a = MQActionS s a ()
+
 type MQActionVoid a = MQAction a ()

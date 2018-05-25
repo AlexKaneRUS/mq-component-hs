@@ -6,10 +6,10 @@ module System.MQ.Component.Extras.Error
 import           Control.Monad.Except (throwError)
 import           System.MQ.Error      (MQError (..), errorComponent,
                                        errorForeign)
-import           System.MQ.Monad      (MQMonad)
+import           System.MQ.Monad      (MQMonadS)
 
-throwComponentError :: String -> MQMonad a
+throwComponentError :: String -> MQMonadS s a
 throwComponentError = throwError . MQError errorComponent
 
-throwForeignError :: String -> MQMonad a
+throwForeignError :: String -> MQMonadS s a
 throwForeignError = throwError . MQError errorForeign

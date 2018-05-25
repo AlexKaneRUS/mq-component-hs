@@ -2,8 +2,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module System.MQ.Component.Extras.Template.Worker
-  ( workerController, workerControllerS
-  , workerScheduler, workerSchedulerS
+  ( workerController
+  , workerScheduler
   ) where
 
 import           Control.Exception                         (Exception,
@@ -41,20 +41,14 @@ import           System.MQ.Transport                       (PushChannel, pull,
 -- | Given 'WorkerAction' acts as component's communication layer that receives messages of type 'a'
 -- from scheduler, processes them using 'WorkerAction' and sends result of type 'b' back to scheduler.
 --
-workerSchedulerS :: (MessageLike a, MessageLike b) => MQActionS s a b -> Env -> MQMonadS s ()
-workerSchedulerS = worker Scheduler
-
-workerScheduler :: (MessageLike a, MessageLike b) => MQAction a b -> Env -> MQMonad ()
-workerScheduler = workerSchedulerS
+workerScheduler :: (MessageLike a, MessageLike b) => MQActionS s a b -> Env -> MQMonadS s ()
+workerScheduler = worker Scheduler
 
 -- | Given 'WorkerAction' acts as component's communication layer that receives messages of type 'a'
 -- from controller, processes them using 'WorkerAction' and sends result of type 'b' to scheduler.
 --
-workerControllerS :: (MessageLike a, MessageLike b) => MQActionS s a b -> Env -> MQMonadS s ()
-workerControllerS = worker Controller
-
-workerController :: (MessageLike a, MessageLike b) => MQAction a b -> Env -> MQMonad ()
-workerController = workerControllerS
+workerController :: (MessageLike a, MessageLike b) => MQActionS s a b -> Env -> MQMonadS s ()
+workerController = worker Controller
 
 --------------------------------------------------------------------------------
 -- INTERNAL
@@ -72,7 +66,7 @@ type MessageReceiver s = MQMonadS s (MessageTag, Message)
 -- that receives messages of type 'a' from scheduler or controller (depending on 'WorkerType'),
 -- processes them using 'WorkerAction' and sends result of type 'b' to scheduler.
 --
-worker :: forall a b s . (MessageLike a, MessageLike b) => WorkerType -> MQActionS s a b -> Env -> MQMonadS s ()
+worker :: forall a b s. (MessageLike a, MessageLike b) => WorkerType -> MQActionS s a b -> Env -> MQMonadS s ()
 worker wType action env@Env{..} = do
     -- Depending on 'WorkerType', we define function using which worker will receive
     -- messages from queue. Also we define channel through which worker will
